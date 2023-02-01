@@ -1,0 +1,4 @@
+boto3==1.21.31
+Jinja2==2.10.1
+loguru==0.5.3
+simple_term_menu==1.6.1

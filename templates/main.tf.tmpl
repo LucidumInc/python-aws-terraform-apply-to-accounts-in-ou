@@ -1,0 +1,9 @@
+data "aws_organizations_organization" "org" {}
+
+module "lucidum_monitor_role" {
+  source = "git::https://github.com/LucidumInc/terraform-aws-lucidum-monitor-role.git"
+  
+  account_id = "{{account_id}}"
+  role_name = "su-test-role"
+  role_sts_externalid = "su-test-random-string"
+}
