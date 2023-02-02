@@ -7,40 +7,54 @@ from jinja2 import Environment, FileSystemLoader
 from simple_term_menu import TerminalMenu
 
 exclude_account_ids = []
-
-def exclude_current_root_account():
-    client = boto3.client("sts")
-    exclude_account_ids.append(client.get_caller_identity()["Account"])
+aws_profile_name = 'root'
 
 def get_all_accounts_in_ou():
     client = boto3.client('organizations')
     return client.list_accounts()
 
-def create_tf_files(folder_name, file_name, account_id):
+def create_tf_files(folder_name, file_name, tf_args):
     env = Environment(loader=FileSystemLoader("templates"))
     tf_template = env.get_template(f"{file_name}.tf.tmpl")
-    tf_content = tf_template.render({'account_id': account_id})
+    tf_content = tf_template.render(tf_args)
     with open(f"{folder_name}/{file_name}.tf", "w") as fp:
         fp.write(tf_content)
 
-def generate_terraform_folder(folder_name, account_id):
+def get_folder_name(account_name, account_id):
+    folder_name = account_name.replace("/","_")
+    folder_name = folder_name.replace(" ", "_")
+    folder_name = f"terraforms/{account_id}-{folder_name}"
+    return folder_name
+
+def generate_root_account_folder():
+    client = boto3.client("sts")
+    account_id = client.get_caller_identity()["Account"]
+    generate_terraform_folder(folder_name=get_folder_name(account_name=aws_profile_name, account_id=account_id), account_id=account_id, assume_role='false')
+    exclude_account_ids.append(account_id)
+
+def generate_terraform_folder(folder_name, account_id, assume_role):
     logger.info(f"Creating folder {folder_name}")
     Path(folder_name).mkdir(parents=True, exist_ok=True)
-    for file_name in ['main', 'providers']:
-        create_tf_files(folder_name=folder_name, file_name=file_name, account_id=account_id)
+    
+    template_args_providers = {'account_id': account_id}
+    create_tf_files(folder_name=folder_name, file_name="providers", tf_args=template_args_providers)
+    
+    template_args_main = {
+        'assume_role': assume_role, 
+        'account_id': account_id
+        }
+    create_tf_files(folder_name=folder_name, file_name="main", tf_args=template_args_main)
 
 def generate_terraform_folder_for_all(accounts):
     for account in accounts:
         if account['Status'] == 'ACTIVE' and account['Id'] not in exclude_account_ids:
-            folder_name = account['Name'].replace("/","_")
-            folder_name = folder_name.replace(" ", "_")
-            folder_name = f"terraforms/{folder_name}-{account['Id']}"
-            generate_terraform_folder(folder_name=folder_name, account_id=account['Id'])
+            folder_name = get_folder_name(account_name=account['Name'], account_id=account['Id'])
+            generate_terraform_folder(folder_name=folder_name, account_id=account['Id'], assume_role='true')
 
 def run_terraform_for_all_folders(cmd):
     for folder in os.listdir("terraforms"):
         logger.info(folder)
-        proc = subprocess.run(f"aws2-wrap --profile root terraform {cmd} > output.{cmd}", cwd=f"terraforms/{folder}", shell=True)
+        proc = subprocess.run(f"aws2-wrap --profile {aws_profile_name} terraform {cmd} > output.{cmd}", cwd=f"terraforms/{folder}", shell=True)
 
 def main():
     terraform_actions = ["init", "plan", "apply --auto-approve", "destroy --auto-approve"]
@@ -55,7 +69,7 @@ def main():
 
         if options[menu_entry_index] == "create folders":
             ret = get_all_accounts_in_ou()
-            exclude_current_root_account()
+            generate_root_account_folder()
             generate_terraform_folder_for_all(ret['Accounts'])
         elif options[menu_entry_index] in terraform_actions:
             logger.info(options[menu_entry_index])
