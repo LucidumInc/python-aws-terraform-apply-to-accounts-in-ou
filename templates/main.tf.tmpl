@@ -1,9 +1,11 @@
-data "aws_organizations_organization" "org" {}
-
 module "lucidum_monitor_role" {
-  source = "git::https://github.com/LucidumInc/terraform-aws-lucidum-monitor-role.git"
+  source      = "git::https://github.com/LucidumInc/terraform-aws-lucidum-monitor-role.git?ref=v1.0.1"
   
-  account_id = "{{account_id}}"
-  role_name = "su-test-role"
-  role_sts_externalid = "su-test-random-string"
+  assume_role = {{assume_role}}
+  account_id  = "{{account_id}}"
+}
+
+# this will output the Role ARN
+output "lucidum_monitor_role" {
+  value       = module.lucidum_monitor_role.iam_role
 }
