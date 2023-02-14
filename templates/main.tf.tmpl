@@ -1,11 +1,12 @@
 module "lucidum_monitor_role" {
-  source      = "git::https://github.com/LucidumInc/terraform-aws-lucidum-monitor-role.git?ref=v1.0.1"
+  source              = "git::https://github.com/LucidumInc/terraform-aws-lucidum-monitor-role.git?ref=v1.0.0"
   
-  assume_role = {{assume_role}}
-  account_id  = "{{account_id}}"
+  assume_role         = {{assume_role}}
+  account_id          = "{{account_id}}"
+  role_sts_externalid = "{{role_sts_externalid}}"
 }
 
 # this will output the Role ARN
 output "lucidum_monitor_role" {
-  value       = module.lucidum_monitor_role.iam_role
+  value               = module.lucidum_monitor_role.iam_role
 }

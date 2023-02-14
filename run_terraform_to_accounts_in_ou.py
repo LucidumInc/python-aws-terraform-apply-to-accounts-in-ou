@@ -1,5 +1,7 @@
 import boto3
 import os
+import random
+import string
 import subprocess
 from pathlib import Path
 from loguru import logger
@@ -8,6 +10,7 @@ from simple_term_menu import TerminalMenu
 
 exclude_account_ids = []
 aws_profile_name = 'root'
+role_sts_externalid = "".join(random.choice(string.ascii_uppercase + string.digits) for _ in range(12))
 
 def get_all_accounts_in_ou():
     client = boto3.client('organizations')
@@ -29,10 +32,10 @@ def get_folder_name(account_name, account_id):
 def generate_root_account_folder():
     client = boto3.client("sts")
     account_id = client.get_caller_identity()["Account"]
-    generate_terraform_folder(folder_name=get_folder_name(account_name=aws_profile_name, account_id=account_id), account_id=account_id, assume_role='false')
+    generate_terraform_folder(folder_name=get_folder_name(account_name=aws_profile_name, account_id=account_id), account_id=account_id, assume_role='false', role_sts_externalid=role_sts_externalid)
     exclude_account_ids.append(account_id)
 
-def generate_terraform_folder(folder_name, account_id, assume_role):
+def generate_terraform_folder(folder_name, account_id, assume_role, role_sts_externalid):
     logger.info(f"Creating folder {folder_name}")
     Path(folder_name).mkdir(parents=True, exist_ok=True)
     
@@ -41,7 +44,8 @@ def generate_terraform_folder(folder_name, account_id, assume_role):
     
     template_args_main = {
         'assume_role': assume_role, 
-        'account_id': account_id
+        'account_id': account_id,
+        'role_sts_externalid': role_sts_externalid
         }
     create_tf_files(folder_name=folder_name, file_name="main", tf_args=template_args_main)
 
@@ -49,7 +53,7 @@ def generate_terraform_folder_for_all(accounts):
     for account in accounts:
         if account['Status'] == 'ACTIVE' and account['Id'] not in exclude_account_ids:
             folder_name = get_folder_name(account_name=account['Name'], account_id=account['Id'])
-            generate_terraform_folder(folder_name=folder_name, account_id=account['Id'], assume_role='true')
+            generate_terraform_folder(folder_name=folder_name, account_id=account['Id'], assume_role='true', role_sts_externalid=role_sts_externalid)
 
 def run_terraform_for_all_folders(cmd):
     for folder in os.listdir("terraforms"):
@@ -79,4 +83,5 @@ def main():
             return
 
 if __name__ == '__main__':
+    logger.info("role_sts_externalid = " + role_sts_externalid)
     main()
